@@ -7,6 +7,7 @@ type EventOption={id:string;name:string;status:string;photo_count:number};
 
 export function EventSwitcher({events,selectedId}:{events:EventOption[];selectedId:string}){
   const[open,setOpen]=useState(false);
+  const[notice,setNotice]=useState("");
   const root=useRef<HTMLDivElement>(null);
   const selected=events.find(item=>item.id===selectedId)!;
   useEffect(()=>{
@@ -17,6 +18,7 @@ export function EventSwitcher({events,selectedId}:{events:EventOption[];selected
   },[]);
   return <div className={`event-switcher${open?" open":""}`} ref={root}>
     <button type="button" aria-expanded={open} onClick={()=>setOpen(value=>!value)}><i/><strong>{selected.name}</strong><ChevronDown/></button>
-    {open&&<div className="event-menu"><small>{events.length} ACARA AKTIF</small>{events.map(item=><Link key={item.id} className={item.id===selectedId?"selected":""} href={`/dashboard?event=${item.id}`} onClick={()=>setOpen(false)}><span>{item.name}<i>AKTIF · {item.photo_count} FOTO</i></span>{item.id===selectedId?<Check/>:<span className="event-open">Pilih</span>}</Link>)}</div>}
+    {open&&<div className="event-menu"><small>{events.length} ACARA AKTIF</small>{events.map(item=><Link key={item.id} className={item.id===selectedId?"selected":""} href={`/dashboard?event=${item.id}`} onClick={()=>{setOpen(false);if(item.id!==selectedId)setNotice("Sedang membuka acara...");}}><span>{item.name}<i>AKTIF · {item.photo_count} FOTO</i></span>{item.id===selectedId?<Check/>:<span className="event-open">Pilih</span>}</Link>)}</div>}
+    {notice&&<div className="dashboard-toast"><i/>{notice}</div>}
   </div>;
 }

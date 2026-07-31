@@ -22,10 +22,19 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
   const [sending,setSending]=useState(false);
   const [uploadError,setUploadError]=useState("");
   const [facing,setFacing]=useState<"user"|"environment">("environment");
+  const [flash,setFlash]=useState(false);
+  const [notice,setNotice]=useState("");
   const completionKey=`kapsul:guest-completed:${event.name}:${event.startsAt??"no-date"}`;
   const video=useRef<HTMLVideoElement>(null);
   const stream=useRef<MediaStream|null>(null);
   const reserved=useRef<ReservedUpload[]|null>(null);
+  const noticeTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+
+  function showNotice(text:string,duration=1500){
+    if(noticeTimer.current)clearTimeout(noticeTimer.current);
+    setNotice(text);
+    noticeTimer.current=setTimeout(()=>setNotice(""),duration);
+  }
 
   useEffect(()=>{
     if(window.localStorage.getItem(completionKey))setStep("done");
@@ -34,11 +43,13 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
 
   async function startCamera(nextFacing:"user"|"environment"=facing){
     setError("");
+    showNotice(nextFacing===facing?"Sedang membuka kamera...":"Sedang mengganti kamera...",2500);
     try{
       stream.current?.getTracks().forEach(track=>track.stop());
       stream.current=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:nextFacing}},audio:false});
       setFacing(nextFacing);
       setStep("camera");
+      showNotice("Kamera siap");
     }catch{setError("Kamera belum dapat dibuka. Periksa izin kamera di browsermu.");}
   }
   async function openCamera(){await startCamera("environment");}
@@ -47,16 +58,19 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
   useEffect(()=>()=>stream.current?.getTracks().forEach(t=>t.stop()),[]);
   function shoot(){
     if(!video.current)return;
+    setFlash(true);setTimeout(()=>setFlash(false),160);navigator.vibrate?.(35);
     const canvas=document.createElement("canvas");
     const sourceWidth=video.current.videoWidth||720,sourceHeight=video.current.videoHeight||960;
     const scale=Math.min(1,1920/Math.max(sourceWidth,sourceHeight));
     canvas.width=Math.round(sourceWidth*scale);canvas.height=Math.round(sourceHeight*scale);
     canvas.getContext("2d")?.drawImage(video.current,0,0,canvas.width,canvas.height);
     setPhotos(p=>[...p,canvas.toDataURL("image/jpeg",.78)].slice(0,limit));
+    showNotice("Foto berhasil diambil");
   }
   function finish(){stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;setStep("preview");}
   async function completeSubmission(submittedMessage=message){
     setSending(true);setUploadError("");
+    showNotice("Sedang mengirim, tunggu sebentar...",6000);
     try{
       if(event.slug&&event.publicToken){
         const supabase=createClient();
@@ -84,6 +98,7 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
       }
       window.localStorage.setItem(completionKey,JSON.stringify({completedAt:new Date().toISOString(),photoCount:photos.length,hasMessage:Boolean(submittedMessage.trim())}));
       setStep("done");
+      showNotice("Berhasil dikirim");
     }catch(error){
       const detail=typeof error==="object"&&error!==null&&"message" in error?String(error.message):"";
       const friendly=detail.includes("Device photo limit")?"Batas foto dari perangkat ini sudah tercapai.":detail.includes("Event photo limit")?"Kapasitas foto acara sudah penuh.":detail.includes("row-level security")?"Izin penyimpanan foto belum aktif.":detail;
@@ -91,8 +106,9 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
     }
     finally{setSending(false);}
   }
+  const toast=notice?<div className="action-toast" role="status"><i/>{notice}</div>:null;
   if(!ready)return null;
-  if(step==="done")return <div className="guest done-screen"><Brand light/><div className="done-mark"><Check/></div><span className="guest-eyebrow">BERHASIL DIKIRIM</span><h1>TERIMA KASIH<br/>SUDAH <em>HADIR.</em></h1><p>Momen dan ucapan dari perangkat ini sudah diselesaikan untuk {event.name}.</p><small>Halaman ini sekarang dapat ditutup.</small></div>;
+  if(step==="done")return <div className="guest done-screen"><Brand light/><div className="done-mark"><Check/></div><span className="guest-eyebrow">BERHASIL DIKIRIM</span><h1>TERIMA KASIH<br/>SUDAH <em>HADIR.</em></h1><p>Momen dan ucapan dari perangkat ini sudah diselesaikan untuk {event.name}.</p><small>Halaman ini sekarang dapat ditutup.</small>{toast}</div>;
   if(step==="message")return <div className="guest message-screen">
     <header><Brand light/><span>{photos.length} FOTO TERKIRIM</span></header>
     <section>
@@ -105,9 +121,9 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
         {message.trim()&&<button type="button" disabled={sending} className="skip-message" onClick={()=>{setMessage("");void completeSubmission("")}}>Lewati ucapan</button>}
       </form>
     </section>
-    <footer><LockKeyhole/> Foto dan ucapan hanya dapat dilihat pemilik acara.</footer>
+    <footer><LockKeyhole/> Foto dan ucapan hanya dapat dilihat pemilik acara.</footer>{toast}
   </div>;
-  if(step==="preview")return <div className="guest preview-screen"><header><button onClick={()=>void startCamera(facing)}><ArrowLeft/> Kembali</button><span>{photos.length} / {limit} FOTO</span></header><div className="preview-title"><span className="guest-eyebrow">PERIKSA MOMENMU</span><h1>SUDAH<br/><em>PAS?</em></h1><p>Hapus foto yang kurang pas atau kirim semuanya ke pemilik acara.</p></div><div className="preview-grid">{photos.map((p,i)=><div key={p}><img src={p} alt={`Foto ${i+1}`}/><button onClick={()=>setPhotos(x=>x.filter((_,n)=>n!==i))}><Trash2/></button><span>0{i+1}</span></div>)}</div><div className="preview-action"><p><LockKeyhole/> Hanya pemilik acara yang dapat melihat foto ini.</p><button disabled={!photos.length} onClick={()=>setStep("message")}>Kirim {photos.length} foto <Check/></button></div></div>;
-  if(step==="camera")return <div className={`guest camera-screen camera-${facing}`}><header><button onClick={()=>{stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;setStep("welcome")}}><X/></button><Brand light/><span>{photos.length}/{limit}</span></header><video ref={video} playsInline muted/><div className="camera-overlay"><div className="camera-title">{event.name}<small>{eventDate}</small></div></div><div className="camera-controls"><button aria-label="Ganti kamera" onClick={()=>void flipCamera()}><RefreshCw/></button><button className="shoot" onClick={shoot} disabled={photos.length>=limit}><span/></button><button onClick={finish} disabled={!photos.length} className="thumb">{photos.length?<img src={photos.at(-1)} alt="Foto terakhir"/>:<Camera/>}{photos.length>0&&<i>{photos.length}</i>}</button></div></div>;
-  return <div className="guest welcome-screen"><div className="guest-top"><Brand light/><span>UNDANGAN KHUSUS</span></div><div className="guest-cover"><div className="cover-copy"><span>{event.eventType?.toUpperCase()||"SPECIAL EVENT"}</span><h1>{nameParts.map((part,index)=><span key={part}>{index>0&&<><br/><i>&</i> </>}{part}</span>)}</h1><p>{eventDate}</p></div><div className="flower">✦</div></div><section><span className="guest-eyebrow">SELAMAT DATANG</span><h2>ABADIKAN<br/>VERSIMU.</h2><p>Ambil hingga {limit} foto dari sudut pandangmu. Foto akan masuk ke galeri privat dan hanya dapat dilihat oleh pemilik acara.</p><label><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><i>{consent&&<Check/>}</i><span>Saya setuju foto dikirim kepada pemilik acara.</span></label>{error&&<div className="camera-error">{error}</div>}<button className="open-camera" disabled={!consent} onClick={openCamera}><Camera/> Buka kamera</button><small><LockKeyhole/> Tidak ada galeri publik · Privasi terjaga</small></section></div>;
+  if(step==="preview")return <div className="guest preview-screen"><header><button onClick={()=>void startCamera(facing)}><ArrowLeft/> Kembali</button><span>{photos.length} / {limit} FOTO</span></header><div className="preview-title"><span className="guest-eyebrow">PERIKSA MOMENMU</span><h1>SUDAH<br/><em>PAS?</em></h1><p>Hapus foto yang kurang pas atau kirim semuanya ke pemilik acara.</p></div><div className="preview-grid">{photos.map((p,i)=><div key={p}><img src={p} alt={`Foto ${i+1}`}/><button onClick={()=>setPhotos(x=>x.filter((_,n)=>n!==i))}><Trash2/></button><span>0{i+1}</span></div>)}</div><div className="preview-action"><p><LockKeyhole/> Hanya pemilik acara yang dapat melihat foto ini.</p><button disabled={!photos.length} onClick={()=>setStep("message")}>Kirim {photos.length} foto <Check/></button></div>{toast}</div>;
+  if(step==="camera")return <div className={`guest camera-screen camera-${facing}`}><header><button onClick={()=>{stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;setStep("welcome")}}><X/></button><Brand light/><span>{photos.length}/{limit}</span></header><video ref={video} playsInline muted/><div className="camera-overlay"><div className="camera-title">{event.name}<small>{eventDate}</small></div></div>{flash&&<div className="shutter-flash"/>}<div className="camera-controls"><button aria-label="Ganti kamera" onClick={()=>void flipCamera()}><RefreshCw/></button><button className="shoot" onClick={shoot} disabled={photos.length>=limit}><span/></button><button onClick={finish} disabled={!photos.length} className="thumb">{photos.length?<img src={photos.at(-1)} alt="Foto terakhir"/>:<Camera/>}{photos.length>0&&<i>{photos.length}</i>}</button></div>{toast}</div>;
+  return <div className="guest welcome-screen"><div className="guest-top"><Brand light/><span>UNDANGAN KHUSUS</span></div><div className="guest-cover"><div className="cover-copy"><span>{event.eventType?.toUpperCase()||"SPECIAL EVENT"}</span><h1>{nameParts.map((part,index)=><span key={part}>{index>0&&<><br/><i>&</i> </>}{part}</span>)}</h1><p>{eventDate}</p></div><div className="flower">✦</div></div><section><span className="guest-eyebrow">SELAMAT DATANG</span><h2>ABADIKAN<br/>VERSIMU.</h2><p>Ambil hingga {limit} foto dari sudut pandangmu. Foto akan masuk ke galeri privat dan hanya dapat dilihat oleh pemilik acara.</p><label><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><i>{consent&&<Check/>}</i><span>Saya setuju foto dikirim kepada pemilik acara.</span></label>{error&&<div className="camera-error">{error}</div>}<button className="open-camera" disabled={!consent} onClick={openCamera}><Camera/> Buka kamera</button><small><LockKeyhole/> Tidak ada galeri publik · Privasi terjaga</small></section>{toast}</div>;
 }

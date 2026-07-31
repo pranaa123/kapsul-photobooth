@@ -26,18 +26,22 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   const event=events?.find(item=>item.id===selectedParams.event)??events?.[0];
   let gallery:{id:string;url:string;createdAt:string}[]=[];
   let messages:{id:string;guest_name:string|null;message:string;created_at:string}[]=[];
+  let messageTotal=0;
 
   if(event){
-    const[{data:photos},{data:guestMessages}]=await Promise.all([
+    const[{data:photos},{data:guestMessages,count:guestMessageCount}]=await Promise.all([
       supabase.from("photos").select("id,storage_path,created_at").eq("event_id",event.id).neq("status","deleted").order("created_at",{ascending:false}).limit(6),
-      supabase.from("guest_messages").select("id,guest_name,message,created_at").eq("event_id",event.id).order("created_at",{ascending:false}).limit(8)
+      supabase.from("guest_messages").select("id,guest_name,message,created_at",{count:"exact"}).eq("event_id",event.id).order("created_at",{ascending:false}).limit(8)
     ]);
     const storageClient=process.env.SUPABASE_SECRET_KEY?createAdminClient():supabase;
     const bucket=storageClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET??"event-photos");
     const signed=await Promise.all((photos??[]).map(photo=>bucket.createSignedUrl(photo.storage_path,3600)));
     gallery=(photos??[]).map((photo,index)=>({id:photo.id,url:signed[index]?.data?.signedUrl??"",createdAt:photo.created_at})).filter(photo=>photo.url);
     messages=guestMessages??[];
+    messageTotal=guestMessageCount??messages.length;
   }
+  const photoTrack=gallery.length?Array.from({length:Math.max(8,gallery.length)},(_,index)=>gallery[index%gallery.length]):[];
+  const messageTrack=messages.length?Array.from({length:Math.max(5,messages.length)},(_,index)=>messages[index%messages.length]):[];
 
   return <main className="dash">
     <aside className="sidebar">
@@ -53,15 +57,15 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
         <div className="metrics">
           <article><div><Images/><span>FOTO TERKUMPUL</span></div><strong>{event.photo_count}<small> / {event.max_photos.toLocaleString("id-ID")}</small></strong><div className="progress"><i style={{width:`${event.photo_count/event.max_photos*100}%`}}/></div></article>
           <article><div><QrCode/><span>PERANGKAT</span></div><strong>{event.device_count}<small> / {event.max_devices}</small></strong><div className="progress"><i style={{width:`${event.device_count/event.max_devices*100}%`}}/></div></article>
-          <article><div><MessageCircle/><span>UCAPAN MASUK</span></div><strong>{messages.length}</strong><p>Ucapan privat dari para tamu.</p></article>
+          <article><div><MessageCircle/><span>UCAPAN MASUK</span></div><strong>{messageTotal}</strong><p>Ucapan privat dari para tamu.</p></article>
         </div>
         <section className="private-gallery" id="galeri">
           <div className="gallery-head"><div><span className="dash-kicker">GALERI PRIVAT</span><h2>MOMEN TERBARU</h2></div><Link className="see-all" href={`/dashboard/gallery?event=${event.id}`}>Lihat semua · {event.photo_count}</Link></div>
-          {gallery.length?<div className="photo-marquee"><div>{[...gallery,...gallery].map((photo,index)=><figure key={`${photo.id}-${index}`}><img src={photo.url} alt={`Foto tamu ${(index%gallery.length)+1}`}/></figure>)}</div></div>:<p className="gallery-empty">Foto tamu akan tampil di sini setelah berhasil dikirim.</p>}
+          {gallery.length?<div className="photo-marquee"><div>{[...photoTrack,...photoTrack].map((photo,index)=><figure key={`${photo.id}-${index}`}><img src={photo.url} alt={`Foto tamu ${(index%gallery.length)+1}`}/></figure>)}</div></div>:<p className="gallery-empty">Foto tamu akan tampil di sini setelah berhasil dikirim.</p>}
         </section>
         <section className="guest-wishes">
-          <div className="gallery-head"><div><span className="dash-kicker">UCAPAN TAMU</span><h2>PESAN UNTUKMU</h2></div></div>
-          {messages.length?<div className="wish-list">{messages.map(item=><article key={item.id}><MessageCircle/><p>“{item.message}”</p><div><b>{item.guest_name||"Tamu anonim"}</b><span>{new Date(item.created_at).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}</span></div></article>)}</div>:<p className="gallery-empty">Belum ada ucapan yang masuk.</p>}
+          <div className="gallery-head"><div><span className="dash-kicker">UCAPAN TAMU</span><h2>PESAN UNTUKMU</h2></div><Link className="see-all" href={`/dashboard/messages?event=${event.id}`}>Lihat semua · {messageTotal}</Link></div>
+          {messages.length?<div className="wish-marquee"><div>{[...messageTrack,...messageTrack].map((item,index)=><article key={`${item.id}-${index}`}><MessageCircle/><p>“{item.message}”</p><div><b>{item.guest_name||"Tamu anonim"}</b><span>{new Date(item.created_at).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}</span></div></article>)}</div></div>:<p className="gallery-empty">Belum ada ucapan yang masuk.</p>}
         </section>
         <div id="qr"><EventQrCard slug={event.slug} token={event.public_token} baseUrl={baseUrl}/></div>
       </>}
