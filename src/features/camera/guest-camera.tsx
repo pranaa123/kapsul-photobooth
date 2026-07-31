@@ -16,8 +16,15 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
   const [error,setError]=useState("");
   const [guestName,setGuestName]=useState("");
   const [message,setMessage]=useState("");
+  const [ready,setReady]=useState(false);
+  const completionKey=`kapsul:guest-completed:${event.name}:${event.startsAt??"no-date"}`;
   const video=useRef<HTMLVideoElement>(null);
   const stream=useRef<MediaStream|null>(null);
+
+  useEffect(()=>{
+    if(window.localStorage.getItem(completionKey))setStep("done");
+    setReady(true);
+  },[completionKey]);
 
   async function openCamera(){
     setError("");
@@ -36,16 +43,21 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
     setPhotos(p=>[...p,canvas.toDataURL("image/jpeg",.82)].slice(0,limit));
   }
   function finish(){stream.current?.getTracks().forEach(t=>t.stop());setStep("preview");}
-  if(step==="done")return <div className="guest done-screen"><Brand light/><div className="done-mark"><Check/></div><span className="guest-eyebrow">BERHASIL DIKIRIM</span><h1>TERIMA KASIH<br/>SUDAH <em>HADIR.</em></h1><p>{photos.length} foto{message.trim()?" dan ucapanmu":""} sudah diterima oleh {event.name}.</p><button onClick={()=>{setPhotos([]);setGuestName("");setMessage("");setStep("welcome")}}>Selesai</button></div>;
+  function completeSubmission(){
+    window.localStorage.setItem(completionKey,JSON.stringify({completedAt:new Date().toISOString(),photoCount:photos.length,hasMessage:Boolean(message.trim())}));
+    setStep("done");
+  }
+  if(!ready)return null;
+  if(step==="done")return <div className="guest done-screen"><Brand light/><div className="done-mark"><Check/></div><span className="guest-eyebrow">BERHASIL DIKIRIM</span><h1>TERIMA KASIH<br/>SUDAH <em>HADIR.</em></h1><p>Momen dan ucapan dari perangkat ini sudah diselesaikan untuk {event.name}.</p><small>Halaman ini sekarang dapat ditutup.</small></div>;
   if(step==="message")return <div className="guest message-screen">
     <header><Brand light/><span>{photos.length} FOTO TERKIRIM</span></header>
     <section>
       <div className="message-intro"><span className="guest-eyebrow">SATU HAL LAGI</span><div className="message-icon"><MessageCircle/></div><h1>TINGGALKAN<br/><em>UCAPAN.</em></h1><p>Tulis pesan kecil untuk {event.name}. Ucapan ini bersifat privat dan hanya terlihat di dashboard mereka.</p></div>
-      <form onSubmit={(event)=>{event.preventDefault();setStep("done")}}>
+      <form onSubmit={(event)=>{event.preventDefault();completeSubmission()}}>
         <label><span>NAMA <i>OPSIONAL</i></span><input value={guestName} onChange={e=>setGuestName(e.target.value)} maxLength={80} placeholder="Namamu"/></label>
         <label><span>UCAPAN <i>OPSIONAL</i></span><textarea value={message} onChange={e=>setMessage(e.target.value)} maxLength={500} placeholder="Semoga hari ini menjadi awal dari banyak cerita indah..."/><small>{message.length} / 500</small></label>
         <button type="submit">{message.trim()?"Kirim ucapan":"Lanjut tanpa ucapan"} <ArrowRight/></button>
-        {message.trim()&&<button type="button" className="skip-message" onClick={()=>{setMessage("");setStep("done")}}>Lewati ucapan</button>}
+        {message.trim()&&<button type="button" className="skip-message" onClick={()=>{setMessage("");window.localStorage.setItem(completionKey,JSON.stringify({completedAt:new Date().toISOString(),photoCount:photos.length,hasMessage:false}));setStep("done")}}>Lewati ucapan</button>}
       </form>
     </section>
     <footer><LockKeyhole/> Foto dan ucapan hanya dapat dilihat pemilik acara.</footer>
