@@ -1,5 +1,5 @@
 "use client";
-import {Save} from "lucide-react";
+import {ArrowRight,LoaderCircle,Save} from "lucide-react";
 import {useFormStatus} from "react-dom";
 
-export function SettingsSubmitButton(){const{pending}=useFormStatus();return <button className="settings-save" type="submit" disabled={pending}><Save/>{pending?"Menyimpan...":"Simpan pengaturan"}</button>}
+export function SettingsSubmitButton(){const{pending}=useFormStatus();return <button className={`settings-save${pending?" is-loading":""}`} type="submit" disabled={pending}>{pending?<LoaderCircle className="spin"/>:<Save/>}<span>{pending?"Menyimpan...":"Simpan pengaturan"}</span>{!pending&&<ArrowRight className="settings-arrow"/>}</button>}
