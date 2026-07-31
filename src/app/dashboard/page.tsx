@@ -4,6 +4,7 @@ import {BarChart3,Check,ChevronDown,Images,LogOut,MessageCircle,QrCode,Settings}
 import {Brand} from "@/components/ui/brand";
 import {EmptyDashboard} from "@/features/dashboard/empty-dashboard";
 import {createClient} from "@/lib/supabase/server";
+import {createAdminClient} from "@/lib/supabase/admin";
 import {EventQrCard} from "@/features/dashboard/event-qr-card";
 
 export default async function DashboardPage({searchParams}:{searchParams:Promise<{event?:string}>}){
@@ -25,7 +26,8 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
       supabase.from("photos").select("id,storage_path,created_at").eq("event_id",event.id).neq("status","deleted").order("created_at",{ascending:false}).limit(12),
       supabase.from("guest_messages").select("id,guest_name,message,created_at").eq("event_id",event.id).order("created_at",{ascending:false}).limit(8)
     ]);
-    const bucket=supabase.storage.from(process.env.SUPABASE_STORAGE_BUCKET??"event-photos");
+    const storageClient=process.env.SUPABASE_SECRET_KEY?createAdminClient():supabase;
+    const bucket=storageClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET??"event-photos");
     const signed=await Promise.all((photos??[]).map(photo=>bucket.createSignedUrl(photo.storage_path,3600)));
     gallery=(photos??[]).map((photo,index)=>({id:photo.id,url:signed[index]?.data?.signedUrl??"",createdAt:photo.created_at})).filter(photo=>photo.url);
     messages=guestMessages??[];
