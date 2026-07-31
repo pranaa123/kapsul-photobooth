@@ -39,10 +39,10 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
       supabase.from("guest_messages").select("id,guest_name,message,created_at",{count:"exact"}).eq("event_id",event.id).order("created_at",{ascending:false}).limit(8),
       supabase.from("event_drive_connections").select("account_email,folder_id,folder_name,status").eq("event_id",event.id).maybeSingle()
     ]);
-    const photoRows=(photos??[]) as {id:string;storage_path:string;created_at:string}[];
+    const photoRows=(photos??[]) as {id:string;storage_path:string;thumbnail_path:string|null;created_at:string}[];
     const storageClient=process.env.SUPABASE_SECRET_KEY?createAdminClient():supabase;
     const bucket=storageClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET??"event-photos");
-    const signed=await Promise.all(photoRows.map(photo=>bucket.createSignedUrl(photo.storage_path,3600)));
+    const signed=await Promise.all(photoRows.map(photo=>bucket.createSignedUrl(photo.thumbnail_path||photo.storage_path,3600)));
     gallery=photoRows.map((photo,index)=>({id:photo.id,url:signed[index]?.data?.signedUrl??"",createdAt:photo.created_at})).filter(photo=>photo.url);
     messages=guestMessages??[];
     messageTotal=guestMessageCount??messages.length;

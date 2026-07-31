@@ -7,7 +7,7 @@ import {createClient} from "@/lib/supabase/client";
 type Step="welcome"|"camera"|"preview"|"message"|"done";
 
 type GuestEvent={name:string;startsAt?:string|null;maxPhotosPerDevice?:number;eventType?:string;slug?:string;publicToken?:string};
-type ReservedUpload={photoId:string;storagePath:string;blob:Blob;uploaded:boolean};
+type ReservedUpload={photoId:string;storagePath:string;thumbnailStoragePath:string;blob:Blob;thumbnailBlob:Blob;masterUploaded:boolean;thumbnailUploaded:boolean};
 export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:00:00+08:00",maxPhotosPerDevice:10,eventType:"Pernikahan"}}:{event?:GuestEvent}){
   const limit=event.maxPhotosPerDevice??10;
   const nameParts=event.name.split("&").map(part=>part.trim());
@@ -72,6 +72,7 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
     showNotice("Foto berhasil diambil");
   }
   function finish(){stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;setStep("preview");}
+  async function makeThumbnail(blob:Blob){const bitmap=await createImageBitmap(blob);const scale=Math.min(1,480/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));canvas.getContext("2d")?.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(result=>result?resolve(result):reject(new Error("Thumbnail gagal dibuat")),"image/webp",.74))}
   async function completeSubmission(submittedMessage=message){
     setSending(true);setUploadError("");
     showNotice("Sedang mengirim, tunggu sebentar...",6000);
@@ -84,18 +85,16 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
           const prepared=await Promise.all(photos.map(async photo=>{
             const blob=await (await fetch(photo)).blob();
             const fileHash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",await blob.arrayBuffer()))).map(byte=>byte.toString(16).padStart(2,"0")).join("");
-            return {clientPhotoId:crypto.randomUUID(),fileHash,byteSize:blob.size,blob};
+            return {clientPhotoId:crypto.randomUUID(),fileHash,byteSize:blob.size,blob,thumbnailBlob:await makeThumbnail(blob)};
           }));
-          const {data,error}=await supabase.rpc("reserve_guest_uploads",{p_slug:event.slug,p_token:event.publicToken,p_device_token:deviceToken,p_photos:prepared.map(({blob,...item})=>item)});
+          const {data,error}=await supabase.rpc("reserve_guest_uploads",{p_slug:event.slug,p_token:event.publicToken,p_device_token:deviceToken,p_photos:prepared.map(item=>({clientPhotoId:item.clientPhotoId,fileHash:item.fileHash,byteSize:item.byteSize}))});
           if(error)throw error;
-          const uploads=(data as {uploads:{photoId:string;storagePath:string}[]}).uploads;
-          reserved.current=uploads.map((upload,index)=>({...upload,blob:prepared[index].blob,uploaded:false}));
+          const uploads=(data as {uploads:{photoId:string;storagePath:string;thumbnailStoragePath:string}[]}).uploads;
+          reserved.current=uploads.map((upload,index)=>({...upload,blob:prepared[index].blob,thumbnailBlob:prepared[index].thumbnailBlob,masterUploaded:false,thumbnailUploaded:false}));
         }
         for(const upload of reserved.current){
-          if(upload.uploaded)continue;
-          const {error}=await supabase.storage.from("event-photos").upload(upload.storagePath,upload.blob,{contentType:"image/jpeg",upsert:false});
-          if(error)throw error;
-          upload.uploaded=true;
+          if(!upload.masterUploaded){const{error}=await supabase.storage.from("event-photos").upload(upload.storagePath,upload.blob,{contentType:"image/jpeg",upsert:false});if(error)throw error;upload.masterUploaded=true;}
+          if(!upload.thumbnailUploaded){const{error}=await supabase.storage.from("event-photos").upload(upload.thumbnailStoragePath,upload.thumbnailBlob,{contentType:"image/webp",upsert:false});if(error)throw error;upload.thumbnailUploaded=true;}
         }
         const {error}=await supabase.rpc("complete_guest_submission",{p_slug:event.slug,p_token:event.publicToken,p_device_token:deviceToken,p_photo_ids:reserved.current.map(item=>item.photoId),p_guest_name:guestName||null,p_message:submittedMessage||null});
         if(error)throw error;
