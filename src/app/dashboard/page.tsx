@@ -31,6 +31,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   let gallery:{id:string;url:string;createdAt:string}[]=[];
   let messages:{id:string;guest_name:string|null;message:string;created_at:string}[]=[];
   let messageTotal=0;
+  let uploadedPhotoTotal=0;
   let driveConnection:{account_email:string|null;folder_id:string;folder_name:string;status:string}|null=null;
   let driveSynced=0;
   let drivePending=0;
@@ -38,8 +39,9 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   let analytics={page_views:0,camera_granted:0,photo_started:0,submit_success:0};
 
   if(event){
-    const[{data:photos},{data:guestMessages,count:guestMessageCount},{data:drive}]=await Promise.all([
+    const[{data:photos},{count:uploadedCount},{data:guestMessages,count:guestMessageCount},{data:drive}]=await Promise.all([
       supabase.rpc("get_random_owner_photos",{p_event_id:event.id,p_limit:6}),
+      supabase.from("photos").select("id",{count:"exact",head:true}).eq("event_id",event.id).eq("status","uploaded"),
       supabase.from("guest_messages").select("id,guest_name,message,created_at",{count:"exact"}).eq("event_id",event.id).order("created_at",{ascending:false}).limit(8),
       supabase.from("event_drive_connections").select("account_email,folder_id,folder_name,status").eq("event_id",event.id).maybeSingle()
     ]);
@@ -48,6 +50,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
     const bucket=storageClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET??"event-photos");
     const signed=await Promise.all(photoRows.map(photo=>bucket.createSignedUrl(photo.thumbnail_path||photo.storage_path,600)));
     gallery=photoRows.map((photo,index)=>({id:photo.id,url:signed[index]?.data?.signedUrl??"",createdAt:photo.created_at})).filter(photo=>photo.url);
+    uploadedPhotoTotal=uploadedCount??0;
     messages=guestMessages??[];
     messageTotal=guestMessageCount??messages.length;
     driveConnection=drive??null;
@@ -78,14 +81,14 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
         <div className="status-row" id="ringkasan"><span className="status"><i/>{event.status}</span><span>{event.starts_at?new Date(event.starts_at).toLocaleDateString("id-ID",{dateStyle:"long"}):"Jadwal belum diatur"}</span></div>
         <div className="dash-title"><div><span className="dash-kicker">SELAMAT DATANG KEMBALI, {firstName.toUpperCase()}</span><h1>MOMENMU<br/>SEDANG <em>TUMBUH.</em></h1></div></div>
         <div className="metrics">
-          <article><div><Images/><span>FOTO TERKUMPUL</span></div><strong>{event.photo_count}<small> / {event.max_photos.toLocaleString("id-ID")}</small></strong><div className="progress"><i style={{width:`${event.photo_count/event.max_photos*100}%`}}/></div></article>
+          <article><div><Images/><span>FOTO TERKUMPUL</span></div><strong>{uploadedPhotoTotal}<small> / {event.max_photos.toLocaleString("id-ID")}</small></strong><div className="progress"><i style={{width:`${uploadedPhotoTotal/event.max_photos*100}%`}}/></div></article>
           <article><div><QrCode/><span>PERANGKAT</span></div><strong>{event.device_count}<small> / {event.max_devices}</small></strong><div className="progress"><i style={{width:`${event.device_count/event.max_devices*100}%`}}/></div></article>
           <article><div><MessageCircle/><span>UCAPAN MASUK</span></div><strong>{messageTotal}</strong><p>Ucapan privat dari para tamu.</p></article>
           <EventQrCard slug={event.slug} token={event.public_token} baseUrl={baseUrl}/>
         </div>
         <section className="funnel-metrics"><article><span>KUNJUNGAN HALAMAN</span><strong>{analytics.page_views}</strong></article><article><span>IZIN KAMERA</span><strong>{analytics.camera_granted}</strong></article><article><span>MULAI MEMOTRET</span><strong>{analytics.photo_started}</strong></article><article><span>BERHASIL MENGIRIM</span><strong>{analytics.submit_success}</strong></article><article><span>SISA WAKTU UPLOAD</span><EventCountdown endsAt={event.upload_ends_at}/></article></section>
         <section className="private-gallery" id="galeri">
-          <div className="gallery-head"><div><span className="dash-kicker">GALERI PRIVAT</span><h2>MOMEN TERBARU</h2></div><div className="gallery-head-actions"><Link className="see-all" href={`/dashboard/gallery?event=${event.id}`}>Lihat semua · {event.photo_count}</Link><DownloadZipButton eventId={event.id} disabled={!event.photo_count} compact/></div></div>
+          <div className="gallery-head"><div><span className="dash-kicker">GALERI PRIVAT</span><h2>MOMEN TERBARU</h2></div><div className="gallery-head-actions"><Link className="see-all" href={`/dashboard/gallery?event=${event.id}`}>Lihat semua · {uploadedPhotoTotal}</Link><DownloadZipButton eventId={event.id} disabled={!uploadedPhotoTotal} compact/></div></div>
           {gallery.length?<div className="photo-marquee"><div>{[...photoTrack,...photoTrack].map((photo,index)=><figure key={`${photo.id}-${index}`}><img src={photo.url} alt={`Foto tamu ${(index%gallery.length)+1}`}/></figure>)}</div></div>:<p className="gallery-empty">Foto tamu akan tampil di sini setelah berhasil dikirim.</p>}
         </section>
         <section className="guest-wishes">
