@@ -7,9 +7,14 @@ import {createClient} from "@/lib/supabase/server";
 import {createAdminClient} from "@/lib/supabase/admin";
 import {EventQrCard} from "@/features/dashboard/event-qr-card";
 import {EventSwitcher} from "@/features/dashboard/event-switcher";
+import {headers} from "next/headers";
 
 export default async function DashboardPage({searchParams}:{searchParams:Promise<{event?:string}>}){
   const supabase=await createClient();
+  const requestHeaders=await headers();
+  const host=requestHeaders.get("x-forwarded-host")??requestHeaders.get("host")??"kapsul-photobooth.vercel.app";
+  const protocol=requestHeaders.get("x-forwarded-proto")??(host.includes("localhost")?"http":"https");
+  const baseUrl=`${protocol}://${host}`;
   const selectedParams=await searchParams;
   const{data:{user}}=await supabase.auth.getUser();
   const[{data:profile},{data:events}]=await Promise.all([
@@ -58,7 +63,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
           <div className="gallery-head"><div><span className="dash-kicker">UCAPAN TAMU</span><h2>PESAN UNTUKMU</h2></div></div>
           {messages.length?<div className="wish-list">{messages.map(item=><article key={item.id}><MessageCircle/><p>“{item.message}”</p><div><b>{item.guest_name||"Tamu anonim"}</b><span>{new Date(item.created_at).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}</span></div></article>)}</div>:<p className="gallery-empty">Belum ada ucapan yang masuk.</p>}
         </section>
-        <div id="qr"><EventQrCard slug={event.slug} token={event.public_token}/></div>
+        <div id="qr"><EventQrCard slug={event.slug} token={event.public_token} baseUrl={baseUrl}/></div>
       </>}
     </section>
   </main>;
