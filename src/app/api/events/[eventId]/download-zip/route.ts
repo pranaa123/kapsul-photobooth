@@ -11,6 +11,16 @@ export const maxDuration=60;
 
 function safeName(value:string){return value.normalize("NFKD").replace(/[^a-zA-Z0-9 _-]/g,"").trim().replace(/\s+/g,"-").slice(0,80)||"acara"}
 
+export async function HEAD(_request:NextRequest,{params}:{params:Promise<{eventId:string}>}){
+  const{eventId}=await params;const supabase=await createClient();const{data:{user}}=await supabase.auth.getUser();
+  if(!user)return new NextResponse(null,{status:401,headers:{"x-kapsul-error":"Sesi berakhir. Silakan masuk kembali."}});
+  const admin=createAdminClient();const{data:event}=await admin.from("events").select("id").eq("id",eventId).eq("user_id",user.id).maybeSingle();
+  if(!event)return new NextResponse(null,{status:404,headers:{"x-kapsul-error":"Acara tidak ditemukan."}});
+  const{count}=await admin.from("photos").select("id",{count:"exact",head:true}).eq("event_id",event.id).eq("status","uploaded");
+  if(!count)return new NextResponse(null,{status:404,headers:{"x-kapsul-error":"Belum ada foto yang dapat diunduh."}});
+  return new NextResponse(null,{status:204,headers:{"cache-control":"private, no-store"}})
+}
+
 export async function GET(_request:NextRequest,{params}:{params:Promise<{eventId:string}>}){
   const{eventId}=await params;
   const supabase=await createClient();

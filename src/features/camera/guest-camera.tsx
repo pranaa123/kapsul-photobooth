@@ -114,7 +114,7 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
       showNotice("Berhasil dikirim");
     }catch(error){
       const detail=typeof error==="object"&&error!==null&&"message" in error?String(error.message):"";
-      const friendly=detail.includes("Device photo limit")?"Batas foto dari perangkat ini sudah tercapai.":detail.includes("Event photo limit")?"Kapasitas foto acara sudah penuh.":detail.includes("row-level security")?"Izin penyimpanan foto belum aktif.":detail;
+      const friendly=detail.includes("Device photo limit")?"Batas foto dari perangkat ini sudah tercapai.":detail.includes("Event photo limit")?"Kapasitas foto acara sudah penuh.":detail.includes("Please wait")?"Permintaan terlalu cepat. Tunggu dua detik lalu coba lagi.":detail.includes("Invalid photo")?"Data foto tidak valid. Silakan ambil ulang foto.":detail.includes("row-level security")?"Izin penyimpanan foto belum aktif.":detail;
       setUploadError(friendly||"Foto belum berhasil dikirim. Silakan coba lagi.");
     }
     finally{setSending(false);}
