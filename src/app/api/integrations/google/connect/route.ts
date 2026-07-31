@@ -1,0 +1,6 @@
+import {randomBytes} from "node:crypto";
+import {NextRequest,NextResponse} from "next/server";
+import {createClient} from "@/lib/supabase/server";
+import {googleAuthorizationUrl,googleRedirectUri} from "@/server/google-drive";
+
+export async function GET(request:NextRequest){const eventId=request.nextUrl.searchParams.get("event");if(!eventId)return NextResponse.redirect(new URL("/dashboard?drive=missing-event",request.url));const supabase=await createClient();const{data:{user}}=await supabase.auth.getUser();if(!user)return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(`/dashboard?event=${eventId}`)}`,request.url));const{data:event}=await supabase.from("events").select("id").eq("id",eventId).eq("user_id",user.id).maybeSingle();if(!event)return NextResponse.redirect(new URL("/dashboard?drive=forbidden",request.url));const state=randomBytes(24).toString("base64url");const response=NextResponse.redirect(googleAuthorizationUrl({state,redirectUri:googleRedirectUri(request.nextUrl.origin)}));response.cookies.set("kapsul_google_oauth",JSON.stringify({state,eventId}),{httpOnly:true,secure:request.nextUrl.protocol==="https:",sameSite:"lax",path:"/",maxAge:600});return response}

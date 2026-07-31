@@ -7,9 +7,10 @@ import {createClient} from "@/lib/supabase/server";
 import {createAdminClient} from "@/lib/supabase/admin";
 import {EventQrCard} from "@/features/dashboard/event-qr-card";
 import {EventSwitcher} from "@/features/dashboard/event-switcher";
+import {GoogleDriveCard} from "@/features/dashboard/google-drive-card";
 import {headers} from "next/headers";
 
-export default async function DashboardPage({searchParams}:{searchParams:Promise<{event?:string}>}){
+export default async function DashboardPage({searchParams}:{searchParams:Promise<{event?:string;drive?:string}>}){
   const supabase=await createClient();
   const requestHeaders=await headers();
   const host=requestHeaders.get("x-forwarded-host")??requestHeaders.get("host")??"kapsul-photobooth.vercel.app";
@@ -27,11 +28,13 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   let gallery:{id:string;url:string;createdAt:string}[]=[];
   let messages:{id:string;guest_name:string|null;message:string;created_at:string}[]=[];
   let messageTotal=0;
+  let driveConnection:{account_email:string|null;folder_id:string;folder_name:string;status:string}|null=null;
 
   if(event){
-    const[{data:photos},{data:guestMessages,count:guestMessageCount}]=await Promise.all([
+    const[{data:photos},{data:guestMessages,count:guestMessageCount},{data:drive}]=await Promise.all([
       supabase.rpc("get_random_owner_photos",{p_event_id:event.id,p_limit:6}),
-      supabase.from("guest_messages").select("id,guest_name,message,created_at",{count:"exact"}).eq("event_id",event.id).order("created_at",{ascending:false}).limit(8)
+      supabase.from("guest_messages").select("id,guest_name,message,created_at",{count:"exact"}).eq("event_id",event.id).order("created_at",{ascending:false}).limit(8),
+      supabase.from("event_drive_connections").select("account_email,folder_id,folder_name,status").eq("event_id",event.id).maybeSingle()
     ]);
     const photoRows=(photos??[]) as {id:string;storage_path:string;created_at:string}[];
     const storageClient=process.env.SUPABASE_SECRET_KEY?createAdminClient():supabase;
@@ -40,6 +43,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
     gallery=photoRows.map((photo,index)=>({id:photo.id,url:signed[index]?.data?.signedUrl??"",createdAt:photo.created_at})).filter(photo=>photo.url);
     messages=guestMessages??[];
     messageTotal=guestMessageCount??messages.length;
+    driveConnection=drive??null;
   }
   const photoTrack=gallery.length?Array.from({length:Math.max(8,gallery.length)},(_,index)=>gallery[index%gallery.length]):[];
   const messageTrack=messages.length?Array.from({length:Math.max(5,messages.length)},(_,index)=>messages[index%messages.length]):[];
@@ -47,7 +51,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   return <main className="dash">
     <aside className="sidebar">
       <Link href="/"><Brand light/></Link>
-      <nav><a className="active" href="#ringkasan"><BarChart3/>Ringkasan</a><a href="#galeri"><Images/>Galeri privat</a><a href="#qr"><QrCode/>QR & tautan</a><a><Settings/>Pengaturan</a></nav>
+      <nav><a className="active" href="#ringkasan"><BarChart3/>Ringkasan</a><a href="#galeri"><Images/>Galeri privat</a><a href="#qr"><QrCode/>QR & tautan</a><a href="#settings"><Settings/>Pengaturan</a></nav>
       <div className="side-bottom"><span>{fullName.slice(0,2).toUpperCase()}</span><div><b>{fullName}</b><small>{user?.email}</small></div><LogOut/></div>
     </aside>
     <section className="dash-main">
@@ -69,6 +73,8 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
           <div className="gallery-head"><div><span className="dash-kicker">UCAPAN TAMU</span><h2>PESAN UNTUKMU</h2></div><Link className="see-all" href={`/dashboard/messages?event=${event.id}`}>Lihat semua · {messageTotal}</Link></div>
           {messages.length?<div className="wish-marquee"><div>{[...messageTrack,...messageTrack].map((item,index)=><article key={`${item.id}-${index}`}><MessageCircle/><p>“{item.message}”</p><div><b>{item.guest_name||"Tamu anonim"}</b><span>{new Date(item.created_at).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}</span></div></article>)}</div></div>:<p className="gallery-empty">Belum ada ucapan yang masuk.</p>}
         </section>
+        <GoogleDriveCard eventId={event.id} connection={driveConnection}/>
+        {selectedParams.drive&&<div className="dashboard-toast"><i/>{selectedParams.drive==="connected"?"Google Drive berhasil dihubungkan.":selectedParams.drive==="disconnected"?"Google Drive telah diputuskan.":"Koneksi Google Drive belum berhasil. Silakan coba lagi."}</div>}
       </>}
     </section>
   </main>;
