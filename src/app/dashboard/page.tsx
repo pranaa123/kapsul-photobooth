@@ -29,6 +29,8 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   let messages:{id:string;guest_name:string|null;message:string;created_at:string}[]=[];
   let messageTotal=0;
   let driveConnection:{account_email:string|null;folder_id:string;folder_name:string;status:string}|null=null;
+  let driveSynced=0;
+  let drivePending=0;
 
   if(event){
     const[{data:photos},{data:guestMessages,count:guestMessageCount},{data:drive}]=await Promise.all([
@@ -44,6 +46,13 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
     messages=guestMessages??[];
     messageTotal=guestMessageCount??messages.length;
     driveConnection=drive??null;
+    if(driveConnection){
+      const[{count:syncedCount},{count:pendingCount}]=await Promise.all([
+        supabase.from("photos").select("id",{count:"exact",head:true}).eq("event_id",event.id).not("drive_file_id","is",null),
+        supabase.from("photos").select("id",{count:"exact",head:true}).eq("event_id",event.id).eq("status","uploaded").is("drive_file_id",null)
+      ]);
+      driveSynced=syncedCount??0;drivePending=pendingCount??0;
+    }
   }
   const photoTrack=gallery.length?Array.from({length:Math.max(8,gallery.length)},(_,index)=>gallery[index%gallery.length]):[];
   const messageTrack=messages.length?Array.from({length:Math.max(5,messages.length)},(_,index)=>messages[index%messages.length]):[];
@@ -73,8 +82,8 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
           <div className="gallery-head"><div><span className="dash-kicker">UCAPAN TAMU</span><h2>PESAN UNTUKMU</h2></div><Link className="see-all" href={`/dashboard/messages?event=${event.id}`}>Lihat semua · {messageTotal}</Link></div>
           {messages.length?<div className="wish-marquee"><div>{[...messageTrack,...messageTrack].map((item,index)=><article key={`${item.id}-${index}`}><MessageCircle/><p>“{item.message}”</p><div><b>{item.guest_name||"Tamu anonim"}</b><span>{new Date(item.created_at).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}</span></div></article>)}</div></div>:<p className="gallery-empty">Belum ada ucapan yang masuk.</p>}
         </section>
-        <GoogleDriveCard eventId={event.id} connection={driveConnection}/>
-        {selectedParams.drive&&<div className="dashboard-toast"><i/>{selectedParams.drive==="connected"?"Google Drive berhasil dihubungkan.":selectedParams.drive==="disconnected"?"Google Drive telah diputuskan.":"Koneksi Google Drive belum berhasil. Silakan coba lagi."}</div>}
+        <GoogleDriveCard eventId={event.id} connection={driveConnection} synced={driveSynced} pending={drivePending}/>
+        {selectedParams.drive&&<div className="dashboard-toast"><i/>{selectedParams.drive==="connected"?"Google Drive berhasil dihubungkan.":selectedParams.drive==="disconnected"?"Google Drive telah diputuskan.":selectedParams.drive==="sync"?"Sinkronisasi satu batch selesai. Klik lagi jika masih ada yang menunggu.":"Koneksi atau sinkronisasi Drive belum berhasil. Silakan coba lagi."}</div>}
       </>}
     </section>
   </main>;

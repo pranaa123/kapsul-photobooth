@@ -65,10 +65,10 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
     setFlash(true);setTimeout(()=>setFlash(false),160);navigator.vibrate?.(35);
     const canvas=document.createElement("canvas");
     const sourceWidth=video.current.videoWidth||720,sourceHeight=video.current.videoHeight||960;
-    const scale=Math.min(1,1920/Math.max(sourceWidth,sourceHeight));
+    const scale=Math.min(1,2560/Math.max(sourceWidth,sourceHeight));
     canvas.width=Math.round(sourceWidth*scale);canvas.height=Math.round(sourceHeight*scale);
     canvas.getContext("2d")?.drawImage(video.current,0,0,canvas.width,canvas.height);
-    setPhotos(p=>[...p,canvas.toDataURL("image/jpeg",.78)].slice(0,remaining));
+    setPhotos(p=>[...p,canvas.toDataURL("image/jpeg",.88)].slice(0,remaining));
     showNotice("Foto berhasil diambil");
   }
   function finish(){stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;setStep("preview");}
@@ -99,6 +99,7 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
         }
         const {error}=await supabase.rpc("complete_guest_submission",{p_slug:event.slug,p_token:event.publicToken,p_device_token:deviceToken,p_photo_ids:reserved.current.map(item=>item.photoId),p_guest_name:guestName||null,p_message:submittedMessage||null});
         if(error)throw error;
+        void fetch("/api/integrations/google/sync",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({slug:event.slug,token:event.publicToken}),keepalive:true}).catch(()=>{});
       }
       const newTotal=Math.min(limit,submittedTotal+photos.length);
       window.localStorage.setItem(completionKey,JSON.stringify({completedAt:new Date().toISOString(),photoCount:newTotal,hasMessage:Boolean(submittedMessage.trim())}));
