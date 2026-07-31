@@ -79,7 +79,11 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
       }
       window.localStorage.setItem(completionKey,JSON.stringify({completedAt:new Date().toISOString(),photoCount:photos.length,hasMessage:Boolean(submittedMessage.trim())}));
       setStep("done");
-    }catch(error){setUploadError(error instanceof Error?error.message:"Foto belum berhasil dikirim. Silakan coba lagi.");}
+    }catch(error){
+      const detail=typeof error==="object"&&error!==null&&"message" in error?String(error.message):"";
+      const friendly=detail.includes("Device photo limit")?"Batas foto dari perangkat ini sudah tercapai.":detail.includes("Event photo limit")?"Kapasitas foto acara sudah penuh.":detail.includes("row-level security")?"Izin penyimpanan foto belum aktif.":detail;
+      setUploadError(friendly||"Foto belum berhasil dikirim. Silakan coba lagi.");
+    }
     finally{setSending(false);}
   }
   if(!ready)return null;
