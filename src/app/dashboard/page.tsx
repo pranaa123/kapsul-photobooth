@@ -24,7 +24,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
 
   if(event){
     const[{data:photos},{data:guestMessages}]=await Promise.all([
-      supabase.from("photos").select("id,storage_path,created_at").eq("event_id",event.id).neq("status","deleted").order("created_at",{ascending:false}).limit(12),
+      supabase.from("photos").select("id,storage_path,created_at").eq("event_id",event.id).neq("status","deleted").order("created_at",{ascending:false}).limit(6),
       supabase.from("guest_messages").select("id,guest_name,message,created_at").eq("event_id",event.id).order("created_at",{ascending:false}).limit(8)
     ]);
     const storageClient=process.env.SUPABASE_SECRET_KEY?createAdminClient():supabase;
