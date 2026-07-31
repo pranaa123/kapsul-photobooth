@@ -4,6 +4,7 @@ import {ArrowLeft,Images} from "lucide-react";
 import {notFound} from "next/navigation";
 import {createClient} from "@/lib/supabase/server";
 import {createAdminClient} from "@/lib/supabase/admin";
+import {DownloadZipButton} from "@/features/dashboard/download-zip-button";
 
 export default async function FullGalleryPage({searchParams}:{searchParams:Promise<{event?:string}>}){
   const{event:eventId}=await searchParams;if(!eventId)notFound();
@@ -17,7 +18,7 @@ export default async function FullGalleryPage({searchParams}:{searchParams:Promi
   const gallery=(photos??[]).map((photo,index)=>({...photo,url:signed[index]?.preview??"",masterUrl:signed[index]?.master??""})).filter(photo=>photo.url);
   return <main className="full-gallery-page">
     <header><Link href={`/dashboard?event=${event.id}`}><ArrowLeft/>Kembali ke dashboard</Link><span>GALERI PRIVAT</span></header>
-    <section className="full-gallery-title"><div><small>{event.name.toUpperCase()}</small><h1>SEMUA<br/><em>MOMEN.</em></h1></div><div><Images/><strong>{gallery.length}</strong><span>FOTO TERSIMPAN</span></div></section>
+    <section className="full-gallery-title"><div><small>{event.name.toUpperCase()}</small><h1>SEMUA<br/><em>MOMEN.</em></h1></div><div className="gallery-actions"><div><Images/><strong>{gallery.length}</strong><span>FOTO TERSIMPAN</span></div><DownloadZipButton eventId={event.id} disabled={!gallery.length}/><small>ZIP tidak disimpan dan tidak memakai kuota galeri.</small></div></section>
     {gallery.length?<section className="full-gallery-grid">{gallery.map((photo,index)=><figure key={photo.id}><a href={photo.masterUrl} target="_blank" rel="noreferrer"><img src={photo.url} alt={`Foto tamu ${index+1}`} loading="lazy"/></a><figcaption>#{String(gallery.length-index).padStart(3,"0")} · {new Date(photo.created_at).toLocaleString("id-ID",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</figcaption></figure>)}</section>:<p className="gallery-empty">Belum ada file foto yang dapat ditampilkan.</p>}
   </main>;
 }
