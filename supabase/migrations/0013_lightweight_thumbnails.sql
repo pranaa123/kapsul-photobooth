@@ -81,7 +81,9 @@ with check (
   )
 );
 
-create or replace function public.get_random_owner_photos(
+drop function if exists public.get_random_owner_photos(uuid,integer);
+
+create function public.get_random_owner_photos(
   p_event_id uuid,
   p_limit integer default 6
 )
