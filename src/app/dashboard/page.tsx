@@ -24,9 +24,9 @@ export default async function DashboardPage(){
       supabase.from("photos").select("id,storage_path,created_at").eq("event_id",event.id).neq("status","deleted").order("created_at",{ascending:false}).limit(12),
       supabase.from("guest_messages").select("id,guest_name,message,created_at").eq("event_id",event.id).order("created_at",{ascending:false}).limit(8)
     ]);
-    const paths=photos?.map(photo=>photo.storage_path)??[];
-    const signed=paths.length?await supabase.storage.from(process.env.SUPABASE_STORAGE_BUCKET??"event-photos").createSignedUrls(paths,3600):null;
-    gallery=(photos??[]).map((photo,index)=>({id:photo.id,url:signed?.data?.[index]?.signedUrl??"",createdAt:photo.created_at})).filter(photo=>photo.url);
+    const bucket=supabase.storage.from(process.env.SUPABASE_STORAGE_BUCKET??"event-photos");
+    const signed=await Promise.all((photos??[]).map(photo=>bucket.createSignedUrl(photo.storage_path,3600)));
+    gallery=(photos??[]).map((photo,index)=>({id:photo.id,url:signed[index]?.data?.signedUrl??"",createdAt:photo.created_at})).filter(photo=>photo.url);
     messages=guestMessages??[];
   }
 
