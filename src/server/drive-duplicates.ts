@@ -1,5 +1,5 @@
 import {createAdminClient} from "@/lib/supabase/admin";
-import {decryptDriveToken,listDriveFolderFiles,refreshGoogleAccessToken} from "@/server/google-drive";
+import {decryptDriveToken,listDriveFolderFiles,refreshGoogleAccessToken,trashDriveFile} from "@/server/google-drive";
 
 export async function inspectDriveDuplicates(eventId:string){
   const admin=createAdminClient();
@@ -15,4 +15,13 @@ export async function inspectDriveDuplicates(eventId:string){
   for(const file of files)byName.set(file.name,[...(byName.get(file.name)??[]),file]);
   const groups=[...byName.entries()].filter(([,items])=>items.length>1).map(([name,items])=>{const official=items.find(item=>officialIds.has(item.id));return{name,items,official,removable:official?items.filter(item=>item.id!==official.id):[]}});
   return{accessToken,folderId:connection.folder_id,totalFiles:files.length,groups,duplicateCount:groups.reduce((sum,group)=>sum+group.removable.length,0),unresolvedCount:groups.filter(group=>!group.official).length};
+}
+
+export async function cleanupVerifiedDriveDuplicates(eventId:string){
+  const report=await inspectDriveDuplicates(eventId);
+  let trashed=0;
+  for(const group of report.groups){
+    for(const duplicate of group.removable){await trashDriveFile(report.accessToken,duplicate.id);trashed++}
+  }
+  return{trashed,unresolved:report.unresolvedCount};
 }
