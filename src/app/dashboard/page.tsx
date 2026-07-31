@@ -10,6 +10,7 @@ import {EventSwitcher} from "@/features/dashboard/event-switcher";
 import {GoogleDriveCard} from "@/features/dashboard/google-drive-card";
 import {DashboardNotice} from "@/features/dashboard/dashboard-notice";
 import {EventCountdown} from "@/features/dashboard/event-countdown";
+import {DownloadZipButton} from "@/features/dashboard/download-zip-button";
 import {headers} from "next/headers";
 
 export default async function DashboardPage({searchParams}:{searchParams:Promise<{event?:string;drive?:string}>}){
@@ -84,7 +85,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
         </div>
         <section className="funnel-metrics"><article><span>KUNJUNGAN HALAMAN</span><strong>{analytics.page_views}</strong></article><article><span>IZIN KAMERA</span><strong>{analytics.camera_granted}</strong></article><article><span>MULAI MEMOTRET</span><strong>{analytics.photo_started}</strong></article><article><span>BERHASIL MENGIRIM</span><strong>{analytics.submit_success}</strong></article><article><span>SISA WAKTU UPLOAD</span><EventCountdown endsAt={event.upload_ends_at}/></article></section>
         <section className="private-gallery" id="galeri">
-          <div className="gallery-head"><div><span className="dash-kicker">GALERI PRIVAT</span><h2>MOMEN TERBARU</h2></div><Link className="see-all" href={`/dashboard/gallery?event=${event.id}`}>Lihat semua · {event.photo_count}</Link></div>
+          <div className="gallery-head"><div><span className="dash-kicker">GALERI PRIVAT</span><h2>MOMEN TERBARU</h2></div><div className="gallery-head-actions"><Link className="see-all" href={`/dashboard/gallery?event=${event.id}`}>Lihat semua · {event.photo_count}</Link><DownloadZipButton eventId={event.id} disabled={!event.photo_count} compact/></div></div>
           {gallery.length?<div className="photo-marquee"><div>{[...photoTrack,...photoTrack].map((photo,index)=><figure key={`${photo.id}-${index}`}><img src={photo.url} alt={`Foto tamu ${(index%gallery.length)+1}`}/></figure>)}</div></div>:<p className="gallery-empty">Foto tamu akan tampil di sini setelah berhasil dikirim.</p>}
         </section>
         <section className="guest-wishes">
