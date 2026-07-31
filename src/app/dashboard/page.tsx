@@ -64,11 +64,11 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   return <main className="dash">
     <aside className="sidebar">
       <Link href="/"><Brand light/></Link>
-      <nav><a className="active" href="#ringkasan"><BarChart3/>Ringkasan</a><a href="#galeri"><Images/>Galeri privat</a><a href="#qr"><QrCode/>QR & tautan</a>{event?<Link href={`/dashboard/settings?event=${event.id}`}><Settings/>Pengaturan</Link>:<a><Settings/>Pengaturan</a>}</nav>
+      <nav><a className="active" href="#ringkasan"><BarChart3/>Ringkasan</a><a href="#galeri"><Images/>Galeri privat</a><a href="#qr"><QrCode/>QR & tautan</a>{event?<a href={`/dashboard/settings?event=${event.id}`}><Settings/>Pengaturan</a>:<a><Settings/>Pengaturan</a>}</nav>
       <div className="side-bottom"><span>{fullName.slice(0,2).toUpperCase()}</span><div><b>{fullName}</b><small>{user?.email}</small></div><LogOut/></div>
     </aside>
     <section className="dash-main">
-      <header className="dash-head"><div><span className="dash-kicker">PILIH ACARA AKTIF</span>{event?<EventSwitcher events={events??[]} selectedId={event.id}/>:<strong>Tidak ada acara aktif</strong>}</div><div><Link href="/create-event">Buat acara baru</Link></div></header>
+      <header className="dash-head"><div><span className="dash-kicker">PILIH ACARA AKTIF</span>{event?<EventSwitcher events={events??[]} selectedId={event.id}/>:<strong>Tidak ada acara aktif</strong>}</div><div>{event&&<a href={`/dashboard/settings?event=${event.id}`}><Settings/>Pengaturan acara</a>}<Link href="/create-event">Buat acara baru</Link></div></header>
       {!event?<EmptyDashboard name={firstName}/>:<>
         <div className="status-row" id="ringkasan"><span className="status"><i/>{event.status}</span><span>{event.starts_at?new Date(event.starts_at).toLocaleDateString("id-ID",{dateStyle:"long"}):"Jadwal belum diatur"}</span></div>
         <div className="dash-title"><div><span className="dash-kicker">SELAMAT DATANG KEMBALI, {firstName.toUpperCase()}</span><h1>MOMENMU<br/>SEDANG <em>TUMBUH.</em></h1></div></div>
