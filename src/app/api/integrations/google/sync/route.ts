@@ -1,8 +1,10 @@
 import {createHash} from "node:crypto";
-import {NextRequest,NextResponse} from "next/server";
+import {after,NextRequest,NextResponse} from "next/server";
 import {createClient} from "@/lib/supabase/server";
 import {createAdminClient} from "@/lib/supabase/admin";
-import {syncEventPhotos} from "@/server/sync-event-drive";
+import {syncAllEventPhotos,syncEventPhotos} from "@/server/sync-event-drive";
+
+export const maxDuration=60;
 
 export async function POST(request:NextRequest){
   const contentType=request.headers.get("content-type")||"";
@@ -15,5 +17,5 @@ export async function POST(request:NextRequest){
     const supabase=await createClient();const{data:{user}}=await supabase.auth.getUser();if(user){const{data:event}=await supabase.from("events").select("id").eq("id",eventId).eq("user_id",user.id).maybeSingle();authorized=Boolean(event)}
   }
   if(!authorized)return NextResponse.json({error:"Tidak diizinkan"},{status:403});
-  try{const result=await syncEventPhotos(eventId,6);if(contentType.includes("application/json"))return NextResponse.json(result);return NextResponse.redirect(new URL(returnTo,request.url),303)}catch(error){console.error("Drive sync failed",error);if(contentType.includes("application/json"))return NextResponse.json({error:"Sinkronisasi belum berhasil"},{status:500});return NextResponse.redirect(new URL(`/dashboard?event=${encodeURIComponent(eventId)}&drive=sync-error`,request.url),303)}
+  try{if(contentType.includes("application/json")){after(()=>syncEventPhotos(eventId,6));return NextResponse.json({started:true})}after(()=>syncAllEventPhotos(eventId));return NextResponse.redirect(new URL(returnTo,request.url),303)}catch(error){console.error("Drive sync failed",error);if(contentType.includes("application/json"))return NextResponse.json({error:"Sinkronisasi belum berhasil"},{status:500});return NextResponse.redirect(new URL(`/dashboard?event=${encodeURIComponent(eventId)}&drive=sync-error`,request.url),303)}
 }

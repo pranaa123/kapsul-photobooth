@@ -8,6 +8,7 @@ import {createAdminClient} from "@/lib/supabase/admin";
 import {EventQrCard} from "@/features/dashboard/event-qr-card";
 import {EventSwitcher} from "@/features/dashboard/event-switcher";
 import {GoogleDriveCard} from "@/features/dashboard/google-drive-card";
+import {DashboardNotice} from "@/features/dashboard/dashboard-notice";
 import {headers} from "next/headers";
 
 export default async function DashboardPage({searchParams}:{searchParams:Promise<{event?:string;drive?:string}>}){
@@ -83,7 +84,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
           {messages.length?<div className="wish-marquee"><div>{[...messageTrack,...messageTrack].map((item,index)=><article key={`${item.id}-${index}`}><MessageCircle/><p>“{item.message}”</p><div><b>{item.guest_name||"Tamu anonim"}</b><span>{new Date(item.created_at).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}</span></div></article>)}</div></div>:<p className="gallery-empty">Belum ada ucapan yang masuk.</p>}
         </section>
         <GoogleDriveCard eventId={event.id} connection={driveConnection} synced={driveSynced} pending={drivePending}/>
-        {selectedParams.drive&&<div className="dashboard-toast"><i/>{selectedParams.drive==="connected"?"Google Drive berhasil dihubungkan.":selectedParams.drive==="disconnected"?"Google Drive telah diputuskan.":selectedParams.drive==="sync"?"Sinkronisasi satu batch selesai. Klik lagi jika masih ada yang menunggu.":"Koneksi atau sinkronisasi Drive belum berhasil. Silakan coba lagi."}</div>}
+        {selectedParams.drive&&<DashboardNotice>{selectedParams.drive==="connected"?"Google Drive berhasil dihubungkan.":selectedParams.drive==="disconnected"?"Google Drive telah diputuskan.":selectedParams.drive==="sync"?"Sinkronisasi semua foto berjalan di latar belakang.":"Koneksi atau sinkronisasi Drive belum berhasil. Silakan coba lagi."}</DashboardNotice>}
       </>}
     </section>
   </main>;

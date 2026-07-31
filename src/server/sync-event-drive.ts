@@ -28,3 +28,13 @@ export async function syncEventPhotos(eventId:string,limit=6){
   const{count}=await admin.from("photos").select("id",{count:"exact",head:true}).eq("event_id",eventId).eq("status","uploaded").is("drive_file_id",null);
   return{synced,pending:count??0,connected:true};
 }
+
+export async function syncAllEventPhotos(eventId:string,maxBatches=12){
+  let total=0,pending=0,connected=true;
+  for(let batch=0;batch<maxBatches;batch++){
+    const result=await syncEventPhotos(eventId,6);
+    total+=result.synced;pending=result.pending;connected=result.connected;
+    if(!connected||pending===0||result.synced===0)break;
+  }
+  return{synced:total,pending,connected};
+}
