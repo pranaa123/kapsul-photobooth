@@ -64,7 +64,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   return <main className="dash">
     <aside className="sidebar">
       <Link href="/"><Brand light/></Link>
-      <nav><a className="active" href="#ringkasan"><BarChart3/>Ringkasan</a><a href="#galeri"><Images/>Galeri privat</a><a href="#qr"><QrCode/>QR & tautan</a><a href="#settings"><Settings/>Pengaturan</a></nav>
+      <nav><a className="active" href="#ringkasan"><BarChart3/>Ringkasan</a><a href="#galeri"><Images/>Galeri privat</a><a href="#qr"><QrCode/>QR & tautan</a>{event?<Link href={`/dashboard/settings?event=${event.id}`}><Settings/>Pengaturan</Link>:<a><Settings/>Pengaturan</a>}</nav>
       <div className="side-bottom"><span>{fullName.slice(0,2).toUpperCase()}</span><div><b>{fullName}</b><small>{user?.email}</small></div><LogOut/></div>
     </aside>
     <section className="dash-main">
