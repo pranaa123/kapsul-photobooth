@@ -19,7 +19,8 @@ export async function syncEventPhotos(eventId:string,limit=6){
       const fileName=`kapsul-${stamp}-${photo.id}.jpg`;
       const existing=await findDrivePhoto(accessToken,connection.folder_id,fileName,photo.id);
       const file=existing??await uploadPhotoToDrive({accessToken,folderId:connection.folder_id,fileName,photoId:photo.id,blob,mimeType:photo.mime_type||"image/jpeg"});
-      await admin.from("photos").update({drive_file_id:file.id,drive_synced_at:new Date().toISOString(),drive_sync_status:"synced",drive_sync_started_at:null,drive_sync_error:null}).eq("id",photo.id);
+      const syncedAt=new Date();
+      await admin.from("photos").update({drive_file_id:file.id,drive_synced_at:syncedAt.toISOString(),drive_sync_status:"synced",drive_sync_started_at:null,drive_sync_error:null,storage_delete_after:new Date(syncedAt.getTime()+7*24*60*60*1000).toISOString()}).eq("id",photo.id);
       synced++;
     }catch(error){
       const message=error instanceof Error?error.message:"Sinkronisasi gagal";

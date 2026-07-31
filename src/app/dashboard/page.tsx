@@ -32,6 +32,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   let driveConnection:{account_email:string|null;folder_id:string;folder_name:string;status:string}|null=null;
   let driveSynced=0;
   let drivePending=0;
+  let nextCleanup:string|null=null;
 
   if(event){
     const[{data:photos},{data:guestMessages,count:guestMessageCount},{data:drive}]=await Promise.all([
@@ -48,11 +49,13 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
     messageTotal=guestMessageCount??messages.length;
     driveConnection=drive??null;
     if(driveConnection){
-      const[{count:syncedCount},{count:pendingCount}]=await Promise.all([
+      const[{count:syncedCount},{count:pendingCount},{data:cleanupPhoto}]=await Promise.all([
         supabase.from("photos").select("id",{count:"exact",head:true}).eq("event_id",event.id).not("drive_file_id","is",null),
-        supabase.from("photos").select("id",{count:"exact",head:true}).eq("event_id",event.id).eq("status","uploaded").is("drive_file_id",null)
+        supabase.from("photos").select("id",{count:"exact",head:true}).eq("event_id",event.id).eq("status","uploaded").is("drive_file_id",null),
+        supabase.from("photos").select("storage_delete_after").eq("event_id",event.id).is("storage_deleted_at",null).not("storage_delete_after","is",null).order("storage_delete_after",{ascending:true}).limit(1).maybeSingle()
       ]);
       driveSynced=syncedCount??0;drivePending=pendingCount??0;
+      nextCleanup=cleanupPhoto?.storage_delete_after??null;
     }
   }
   const photoTrack=gallery.length?Array.from({length:Math.max(8,gallery.length)},(_,index)=>gallery[index%gallery.length]):[];
@@ -83,7 +86,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
           <div className="gallery-head"><div><span className="dash-kicker">UCAPAN TAMU</span><h2>PESAN UNTUKMU</h2></div><Link className="see-all" href={`/dashboard/messages?event=${event.id}`}>Lihat semua · {messageTotal}</Link></div>
           {messages.length?<div className="wish-marquee"><div>{[...messageTrack,...messageTrack].map((item,index)=><article key={`${item.id}-${index}`}><MessageCircle/><p>“{item.message}”</p><div><b>{item.guest_name||"Tamu anonim"}</b><span>{new Date(item.created_at).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}</span></div></article>)}</div></div>:<p className="gallery-empty">Belum ada ucapan yang masuk.</p>}
         </section>
-        <GoogleDriveCard eventId={event.id} connection={driveConnection} synced={driveSynced} pending={drivePending}/>
+        <GoogleDriveCard eventId={event.id} connection={driveConnection} synced={driveSynced} pending={drivePending} nextCleanup={nextCleanup}/>
         {selectedParams.drive&&<DashboardNotice>{selectedParams.drive==="connected"?"Google Drive berhasil dihubungkan.":selectedParams.drive==="disconnected"?"Google Drive telah diputuskan.":selectedParams.drive==="sync"?"Sinkronisasi semua foto berjalan di latar belakang.":"Koneksi atau sinkronisasi Drive belum berhasil. Silakan coba lagi."}</DashboardNotice>}
       </>}
     </section>
