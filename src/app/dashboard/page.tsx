@@ -1,6 +1,6 @@
 import "./dashboard.css";
 import Link from "next/link";
-import {BarChart3,Images,LogOut,MessageCircle,QrCode,Settings} from "lucide-react";
+import {BarChart3,Check,ChevronDown,Images,LogOut,MessageCircle,QrCode,Settings} from "lucide-react";
 import {Brand} from "@/components/ui/brand";
 import {EmptyDashboard} from "@/features/dashboard/empty-dashboard";
 import {createClient} from "@/lib/supabase/server";
@@ -12,7 +12,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   const{data:{user}}=await supabase.auth.getUser();
   const[{data:profile},{data:events}]=await Promise.all([
     supabase.from("profiles").select("full_name").eq("id",user!.id).maybeSingle(),
-    supabase.from("events").select("id,name,status,starts_at,photo_count,max_photos,device_count,max_devices,slug,public_token").order("created_at",{ascending:false})
+    supabase.from("events").select("id,name,status,starts_at,photo_count,max_photos,device_count,max_devices,slug,public_token").eq("status","active").order("created_at",{ascending:false})
   ]);
   const fullName=profile?.full_name||user?.user_metadata?.full_name||"Pemilik Acara";
   const firstName=fullName.split(" ")[0];
@@ -38,7 +38,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
       <div className="side-bottom"><span>{fullName.slice(0,2).toUpperCase()}</span><div><b>{fullName}</b><small>{user?.email}</small></div><LogOut/></div>
     </aside>
     <section className="dash-main">
-      <header className="dash-head"><div><span className="dash-kicker">DASHBOARD PEMILIK</span>{event?<details className="event-switcher"><summary>{event.name}<span>⌄</span></summary><div><small>ACARA SAYA</small>{events?.map(item=><Link key={item.id} className={item.id===event.id?"selected":""} href={`/dashboard?event=${item.id}`}><span>{item.name}<i>{item.status}</i></span><b>{item.photo_count} foto</b></Link>)}</div></details>:<strong>Belum ada acara</strong>}</div><div><Link href="/create-event">Buat acara baru</Link></div></header>
+      <header className="dash-head"><div><span className="dash-kicker">PILIH ACARA AKTIF</span>{event?<details className="event-switcher"><summary><i/><strong>{event.name}</strong><ChevronDown/></summary><div><small>{events?.length??0} ACARA AKTIF</small>{events?.map(item=><Link key={item.id} className={item.id===event.id?"selected":""} href={`/dashboard?event=${item.id}`}><span>{item.name}<i>AKTIF · {item.photo_count} FOTO</i></span>{item.id===event.id?<Check/>:<span className="event-open">Pilih</span>}</Link>)}</div></details>:<strong>Tidak ada acara aktif</strong>}</div><div><Link href="/create-event">Buat acara baru</Link></div></header>
       {!event?<EmptyDashboard name={firstName}/>:<>
         <div className="status-row" id="ringkasan"><span className="status"><i/>{event.status}</span><span>{event.starts_at?new Date(event.starts_at).toLocaleDateString("id-ID",{dateStyle:"long"}):"Jadwal belum diatur"}</span></div>
         <div className="dash-title"><div><span className="dash-kicker">SELAMAT DATANG KEMBALI, {firstName.toUpperCase()}</span><h1>MOMENMU<br/>SEDANG <em>TUMBUH.</em></h1></div></div>
