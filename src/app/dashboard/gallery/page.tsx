@@ -13,7 +13,7 @@ export default async function FullGalleryPage({searchParams}:{searchParams:Promi
   const{data:photos}=await supabase.from("photos").select("id,storage_path,thumbnail_path,drive_file_id,storage_deleted_at,created_at").eq("event_id",event.id).neq("status","deleted").order("created_at",{ascending:false}).limit(200);
   const storageClient=process.env.SUPABASE_SECRET_KEY?createAdminClient():supabase;
   const bucket=storageClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET??"event-photos");
-  const signed=await Promise.all((photos??[]).map(async photo=>{const preview=await bucket.createSignedUrl(photo.thumbnail_path||photo.storage_path,3600);const master=photo.storage_deleted_at?null:await bucket.createSignedUrl(photo.storage_path,3600);return{preview:preview.data?.signedUrl??"",master:master?.data?.signedUrl??(photo.drive_file_id?`https://drive.google.com/open?id=${photo.drive_file_id}`:"")}}));
+  const signed=await Promise.all((photos??[]).map(async photo=>{const preview=await bucket.createSignedUrl(photo.thumbnail_path||photo.storage_path,600);const master=photo.storage_deleted_at?null:await bucket.createSignedUrl(photo.storage_path,600);return{preview:preview.data?.signedUrl??"",master:master?.data?.signedUrl??(photo.drive_file_id?`https://drive.google.com/open?id=${photo.drive_file_id}`:"")}}));
   const gallery=(photos??[]).map((photo,index)=>({...photo,url:signed[index]?.preview??"",masterUrl:signed[index]?.master??""})).filter(photo=>photo.url);
   return <main className="full-gallery-page">
     <header><Link href={`/dashboard?event=${event.id}`}><ArrowLeft/>Kembali ke dashboard</Link><span>GALERI PRIVAT</span></header>

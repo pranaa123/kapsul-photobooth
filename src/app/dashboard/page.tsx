@@ -9,6 +9,7 @@ import {EventQrCard} from "@/features/dashboard/event-qr-card";
 import {EventSwitcher} from "@/features/dashboard/event-switcher";
 import {GoogleDriveCard} from "@/features/dashboard/google-drive-card";
 import {DashboardNotice} from "@/features/dashboard/dashboard-notice";
+import {EventCountdown} from "@/features/dashboard/event-countdown";
 import {headers} from "next/headers";
 
 export default async function DashboardPage({searchParams}:{searchParams:Promise<{event?:string;drive?:string}>}){
@@ -21,7 +22,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   const{data:{user}}=await supabase.auth.getUser();
   const[{data:profile},{data:events}]=await Promise.all([
     supabase.from("profiles").select("full_name").eq("id",user!.id).maybeSingle(),
-    supabase.from("events").select("id,name,status,starts_at,photo_count,max_photos,device_count,max_devices,slug,public_token").eq("status","active").order("created_at",{ascending:false})
+    supabase.from("events").select("id,name,status,starts_at,upload_ends_at,photo_count,max_photos,device_count,max_devices,slug,public_token").eq("status","active").order("created_at",{ascending:false})
   ]);
   const fullName=profile?.full_name||user?.user_metadata?.full_name||"Pemilik Acara";
   const firstName=fullName.split(" ")[0];
@@ -33,6 +34,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
   let driveSynced=0;
   let drivePending=0;
   let nextCleanup:string|null=null;
+  let analytics={page_views:0,camera_granted:0,photo_started:0,submit_success:0};
 
   if(event){
     const[{data:photos},{data:guestMessages,count:guestMessageCount},{data:drive}]=await Promise.all([
@@ -43,11 +45,13 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
     const photoRows=(photos??[]) as {id:string;storage_path:string;thumbnail_path:string|null;created_at:string}[];
     const storageClient=process.env.SUPABASE_SECRET_KEY?createAdminClient():supabase;
     const bucket=storageClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET??"event-photos");
-    const signed=await Promise.all(photoRows.map(photo=>bucket.createSignedUrl(photo.thumbnail_path||photo.storage_path,3600)));
+    const signed=await Promise.all(photoRows.map(photo=>bucket.createSignedUrl(photo.thumbnail_path||photo.storage_path,600)));
     gallery=photoRows.map((photo,index)=>({id:photo.id,url:signed[index]?.data?.signedUrl??"",createdAt:photo.created_at})).filter(photo=>photo.url);
     messages=guestMessages??[];
     messageTotal=guestMessageCount??messages.length;
     driveConnection=drive??null;
+    const{data:analyticsData}=await supabase.rpc("get_owner_event_analytics",{p_event_id:event.id});
+    if(analyticsData)analytics={...analytics,...analyticsData};
     if(driveConnection){
       const[{count:syncedCount},{count:pendingCount},{data:cleanupPhoto}]=await Promise.all([
         supabase.from("photos").select("id",{count:"exact",head:true}).eq("event_id",event.id).not("drive_file_id","is",null),
@@ -78,6 +82,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
           <article><div><MessageCircle/><span>UCAPAN MASUK</span></div><strong>{messageTotal}</strong><p>Ucapan privat dari para tamu.</p></article>
           <EventQrCard slug={event.slug} token={event.public_token} baseUrl={baseUrl}/>
         </div>
+        <section className="funnel-metrics"><article><span>KUNJUNGAN HALAMAN</span><strong>{analytics.page_views}</strong></article><article><span>IZIN KAMERA</span><strong>{analytics.camera_granted}</strong></article><article><span>MULAI MEMOTRET</span><strong>{analytics.photo_started}</strong></article><article><span>BERHASIL MENGIRIM</span><strong>{analytics.submit_success}</strong></article><article><span>SISA WAKTU UPLOAD</span><EventCountdown endsAt={event.upload_ends_at}/></article></section>
         <section className="private-gallery" id="galeri">
           <div className="gallery-head"><div><span className="dash-kicker">GALERI PRIVAT</span><h2>MOMEN TERBARU</h2></div><Link className="see-all" href={`/dashboard/gallery?event=${event.id}`}>Lihat semua · {event.photo_count}</Link></div>
           {gallery.length?<div className="photo-marquee"><div>{[...photoTrack,...photoTrack].map((photo,index)=><figure key={`${photo.id}-${index}`}><img src={photo.url} alt={`Foto tamu ${(index%gallery.length)+1}`}/></figure>)}</div></div>:<p className="gallery-empty">Foto tamu akan tampil di sini setelah berhasil dikirim.</p>}

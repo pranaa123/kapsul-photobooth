@@ -32,6 +32,10 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
   const stream=useRef<MediaStream|null>(null);
   const reserved=useRef<ReservedUpload[]|null>(null);
   const noticeTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const trackedPhotoStart=useRef(false);
+
+  function deviceToken(){let token=window.localStorage.getItem("kapsul:device-token");if(!token){token=crypto.randomUUID()+crypto.randomUUID();window.localStorage.setItem("kapsul:device-token",token)}return token}
+  function track(activityType:"page_view"|"camera_granted"|"photo_started"|"submit_success"){if(!event.slug||!event.publicToken)return;void createClient().rpc("track_guest_activity",{p_slug:event.slug,p_token:event.publicToken,p_device_token:deviceToken(),p_activity_type:activityType})}
 
   function showNotice(text:string,duration=1500){
     if(noticeTimer.current)clearTimeout(noticeTimer.current);
@@ -43,6 +47,7 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
     const saved=window.localStorage.getItem(completionKey)??window.localStorage.getItem(legacyCompletionKey);
     if(saved){try{const count=Number(JSON.parse(saved).photoCount??0);setSubmittedTotal(count);if(count>=limit)setStep("done");}catch{window.localStorage.removeItem(completionKey);}}
     setReady(true);
+    track("page_view");
   },[completionKey]);
 
   async function startCamera(nextFacing:"user"|"environment"=facing){
@@ -53,6 +58,7 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
       stream.current=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:nextFacing}},audio:false});
       setFacing(nextFacing);
       setStep("camera");
+      track("camera_granted");
       showNotice("Kamera siap");
     }catch{setError("Kamera belum dapat dibuka. Periksa izin kamera di browsermu.");}
   }
@@ -63,6 +69,7 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
   function shoot(){
     if(!video.current)return;
     setFlash(true);setTimeout(()=>setFlash(false),160);navigator.vibrate?.(35);
+    if(!trackedPhotoStart.current){trackedPhotoStart.current=true;track("photo_started")}
     const canvas=document.createElement("canvas");
     const sourceWidth=video.current.videoWidth||720,sourceHeight=video.current.videoHeight||960;
     const scale=Math.min(1,2560/Math.max(sourceWidth,sourceHeight));
@@ -79,15 +86,14 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
     try{
       if(event.slug&&event.publicToken){
         const supabase=createClient();
-        let deviceToken=window.localStorage.getItem("kapsul:device-token");
-        if(!deviceToken){deviceToken=crypto.randomUUID()+crypto.randomUUID();window.localStorage.setItem("kapsul:device-token",deviceToken);}
+        const currentDeviceToken=deviceToken();
         if(!reserved.current){
           const prepared=await Promise.all(photos.map(async photo=>{
             const blob=await (await fetch(photo)).blob();
             const fileHash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",await blob.arrayBuffer()))).map(byte=>byte.toString(16).padStart(2,"0")).join("");
             return {clientPhotoId:crypto.randomUUID(),fileHash,byteSize:blob.size,blob,thumbnailBlob:await makeThumbnail(blob)};
           }));
-          const {data,error}=await supabase.rpc("reserve_guest_uploads",{p_slug:event.slug,p_token:event.publicToken,p_device_token:deviceToken,p_photos:prepared.map(item=>({clientPhotoId:item.clientPhotoId,fileHash:item.fileHash,byteSize:item.byteSize}))});
+          const {data,error}=await supabase.rpc("reserve_guest_uploads",{p_slug:event.slug,p_token:event.publicToken,p_device_token:currentDeviceToken,p_photos:prepared.map(item=>({clientPhotoId:item.clientPhotoId,fileHash:item.fileHash,byteSize:item.byteSize}))});
           if(error)throw error;
           const uploads=(data as {uploads:{photoId:string;storagePath:string;thumbnailStoragePath:string}[]}).uploads;
           reserved.current=uploads.map((upload,index)=>({...upload,blob:prepared[index].blob,thumbnailBlob:prepared[index].thumbnailBlob,masterUploaded:false,thumbnailUploaded:false}));
@@ -96,8 +102,9 @@ export function GuestCamera({event={name:"Rania & Dava",startsAt:"2026-08-12T16:
           if(!upload.masterUploaded){const{error}=await supabase.storage.from("event-photos").upload(upload.storagePath,upload.blob,{contentType:"image/jpeg",upsert:false});if(error)throw error;upload.masterUploaded=true;}
           if(!upload.thumbnailUploaded){const{error}=await supabase.storage.from("event-photos").upload(upload.thumbnailStoragePath,upload.thumbnailBlob,{contentType:"image/webp",upsert:false});if(error)throw error;upload.thumbnailUploaded=true;}
         }
-        const {error}=await supabase.rpc("complete_guest_submission",{p_slug:event.slug,p_token:event.publicToken,p_device_token:deviceToken,p_photo_ids:reserved.current.map(item=>item.photoId),p_guest_name:guestName||null,p_message:submittedMessage||null});
+        const {error}=await supabase.rpc("complete_guest_submission",{p_slug:event.slug,p_token:event.publicToken,p_device_token:currentDeviceToken,p_photo_ids:reserved.current.map(item=>item.photoId),p_guest_name:guestName||null,p_message:submittedMessage||null});
         if(error)throw error;
+        track("submit_success");
         void fetch("/api/integrations/google/sync",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({slug:event.slug,token:event.publicToken}),keepalive:true}).catch(()=>{});
       }
       const newTotal=Math.min(limit,submittedTotal+photos.length);
